@@ -1,4 +1,4 @@
-package projGoSdcc
+package main
 
 import (
 	"bufio"
@@ -18,25 +18,18 @@ func main() {
 	defer producer.Close()
 
 	for {
-		// Asynchronous call
-		reader := bufio.NewReader(os.Stdin)
+
 		fmt.Print("Enter text: ")
-		text1, _ := reader.ReadString('\n')
-		fmt.Println(text1)
+		text1, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 
 		var reply bool
-		var reply_s string
 
-		msgCall := producer.Go("Queue.PushInQueue", text1, reply, nil)
+		msgCall := producer.Go("MessageQueue.PushInQueue", text1, &reply, nil)
 		msgCall = <-msgCall.Done
 		if msgCall.Error != nil {
-			log.Fatal("Error in Queue.PushInQueue: ", msgCall.Error.Error())
+			log.Fatal("Error in MessageQueue.PushInQueue: ", msgCall.Error.Error())
 		}
-		if reply == true {
-			reply_s = "OK"
-		} else {
-			reply_s = "ERROR"
-		}
-		fmt.Printf("Queue.PushInQueue: %s", reply_s)
+
+		fmt.Printf("MessageQueue.PushInQueue: OK \n")
 	}
 }
