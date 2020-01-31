@@ -26,11 +26,11 @@ var (
 func scelta_variabili(i int) {
 	fmt.Print("Vuoi usare le variabili predefinite? y = YES, n = NO ")
 	text1, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	if text1 == "y" {
+	if text1 == "y\n" {
 		timeoutRetransmit = TIMEOUT_RETRANSMIT
 		timeoutVisibility = TIMEOUT_VISIBILITY
 		semantic = SEMANTIC
-	} else if text1 == "n" {
+	} else if text1 == "n\n" {
 		fmt.Printf(" Digita il valore del Timeout retransmit? \n")
 		_, err := fmt.Scanf("%d", &i)
 		if err != nil {
@@ -55,9 +55,9 @@ func scelta_variabili(i int) {
 
 		semantic = i
 	} else {
-		fmt.Println("Il comando digitato non è corretto")
-		scelta_variabili(i)
+		fmt.Println("Digitare un valore corretto")
 	}
+	fmt.Println("QUEUE CREATA IN ASCOLTO")
 }
 
 func (MsgQ *MessageQueue) GetSize(i int, ret *int) error {
@@ -151,7 +151,6 @@ func routine(m Message, msg_q *MessageQueue) {
 					fmt.Println("MESSAGGIO REINSERITO IN CODA - timeout retransmit scaduto")
 				} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
 				}
-				mutex.Unlock()
 			} else if semantic == TIMEOUTBASED { //SEMANTICA TIMEOUT BASED
 				if msg_q.Messages[i].Status == WAITINGACK {
 					msg_q.Messages[i].Status = INQUEUE
@@ -165,7 +164,6 @@ func routine(m Message, msg_q *MessageQueue) {
 				} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
 					fmt.Println("OK")
 				}
-				mutex.Unlock()
 			}
 		}
 	}

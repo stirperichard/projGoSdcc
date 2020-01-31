@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net/rpc"
+	"strconv"
 	"time"
 )
 
@@ -17,11 +18,11 @@ func main() {
 
 	defer consumer.Close()
 	for {
-		i := 1
+		i := sceltaWork()
 
 		if i == 0 {
 			//GET INFO
-			get_info(consumer)
+			get_information(consumer)
 		} else if i == 1 {
 			//CONSUMER
 			consuma(consumer)
@@ -94,6 +95,37 @@ func elaboraMessaggio() {
 func generaNumeroRandom() int {
 	rand.Seed(time.Now().UnixNano())
 	min := 1
-	max := 15
-	return (rand.Intn(max-min) + min)
+	max := 5
+	l := rand.Intn(max-min) + min
+	fmt.Println("VALORE GENERATO", l)
+	return (l)
+}
+
+func get_information(consumer *rpc.Client) {
+	var (
+		in int
+		m  []Message
+	)
+
+	msgCallInfo := consumer.Go("MessageQueue.GetInfoQueue", in, &m, nil)
+
+	msgCallInfo = <-msgCallInfo.Done
+	if msgCallInfo.Error != nil {
+		log.Fatal("Error in MessageQueue.GetInfoQueue: ", msgCallInfo.Error.Error())
+	}
+
+	for index, elem := range m {
+		fmt.Printf("MESSAGGIO [" + strconv.Itoa(index) + "]" + "\nID :" + strconv.Itoa(elem.ID) +
+			"\nTesto: " + elem.Text + "Status: " + strconv.Itoa(elem.Status) + "\n")
+	}
+}
+
+func sceltaWork() int {
+	fmt.Printf("Cosa vuoi fare? \n Digita 0 per leggere la lista dei messaggi in coda oppure 1 per Consumer \n")
+	var i int
+	_, err := fmt.Scanf("%d", &i)
+	if err != nil {
+		log.Fatal("Error in Scanf: ", err)
+	}
+	return i
 }
