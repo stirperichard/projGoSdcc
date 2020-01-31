@@ -19,12 +19,14 @@ func main() {
 
 	for {
 
+		var m Message
 		fmt.Print("Enter text: ")
 		text1, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 
+		m.Text = text1
 		var reply bool
 
-		msgCall := producer.Go("MessageQueue.PushInQueue", text1, &reply, nil)
+		msgCall := producer.Go("MessageQueue.PushInQueue", m, &reply, nil)
 		msgCall = <-msgCall.Done
 		if msgCall.Error != nil {
 			log.Fatal("Error in MessageQueue.PushInQueue: ", msgCall.Error.Error())
