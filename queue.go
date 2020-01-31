@@ -142,6 +142,11 @@ func routine(id int, msg_q *MessageQueue) {
 		fmt.Println("SEMANTICA AT LEAST ONCE")
 		time.Sleep(time.Duration(timeoutRetransmit) * time.Second)
 		mutex.Lock()
+		if len(msg_q.Messages) < 1 {
+			fmt.Println("MESSAGE QUEUE VUOTA")
+			mutex.Unlock()
+			return
+		}
 		fmt.Printf("MESSAGE ID: %d    STATUS: %d\n", msg_q.Messages[value].ID, msg_q.Messages[value].Status)
 		if msg_q.Messages[value].Status == WAITINGACK || msg_q.Messages[value].Status == SENDED {
 			msg_q.Messages[value].Status = INQUEUE
