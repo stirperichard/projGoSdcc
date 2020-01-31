@@ -11,12 +11,9 @@ const WAITINGACK = 1
 const SENDED = 2
 const ELABORATED = 3
 
-const TIMEOUT_VISIBILITY = 10
-const TIMEOUT_RETRANSMIT = 10
-const SEMANTIC = TIMEOUTBASED //è possibile modificarlo
-
-//Definizione variabili
-var MessageID int
+const TIMEOUT_VISIBILITY = 5
+const TIMEOUT_RETRANSMIT = 5
+const SEMANTIC = ATLEASTONCE //è possibile modificarlo con TIMEOUTBASED
 
 // Definizione delle strutture
 type Message struct {

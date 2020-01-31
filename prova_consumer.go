@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/rpc"
-	"strconv"
 	"time"
 )
 
@@ -17,14 +17,14 @@ func main() {
 
 	defer consumer.Close()
 	for {
-		i := scelta()
+		i := 1
 
 		if i == 0 {
 			//GET INFO
 			get_info(consumer)
 		} else if i == 1 {
 			//CONSUMER
-			consume(consumer)
+			consuma(consumer)
 		} else {
 			//ERRORE NEL VALORE DIGITATO
 			fmt.Println("Digita un valore corretto")
@@ -32,7 +32,7 @@ func main() {
 	}
 }
 
-func consume(consumer *rpc.Client) {
+func consuma(consumer *rpc.Client) {
 	for {
 		var (
 			args, risposta string
@@ -58,7 +58,7 @@ func consume(consumer *rpc.Client) {
 
 			fmt.Printf("MESSAGGIO RICEVUTO CON ID: %d E CON TESTO: %s", m.ID, m.Text)
 
-			consumeSeconds()
+			consumaSecondi()
 
 			var ack ACK
 			ack.ID = m.ID
@@ -69,7 +69,7 @@ func consume(consumer *rpc.Client) {
 				log.Fatal("Error in MessageQueue.ReceiveACK: ", msgACK.Error.Error())
 			}
 
-			elaborateMessage()
+			elaboraMessaggio()
 
 			msgACK2 := consumer.Go("MessageQueue.ReceiveACK", ack, &risposta, nil)
 			msgACK2 = <-msgACK2.Done
@@ -81,41 +81,19 @@ func consume(consumer *rpc.Client) {
 	}
 }
 
-func get_info(consumer *rpc.Client) {
-	var (
-		in int
-		m  []Message
-	)
-
-	msgCallInfo := consumer.Go("MessageQueue.GetInfoQueue", in, &m, nil)
-
-	msgCallInfo = <-msgCallInfo.Done
-	if msgCallInfo.Error != nil {
-		log.Fatal("Error in MessageQueue.GetInfoQueue: ", msgCallInfo.Error.Error())
-	}
-
-	for index, elem := range m {
-		fmt.Printf("MESSAGGIO [" + strconv.Itoa(index) + "]" + "\nID :" + strconv.Itoa(elem.ID) +
-			"\nTesto: " + elem.Text + "Status: " + strconv.Itoa(elem.Status) + "\n")
-	}
-}
-
-func scelta() int {
-	fmt.Printf("Cosa vuoi fare? \n Digita 0 per leggere la lista dei messaggi in coda oppure 1 per Consumer \n")
-	var i int
-	_, err := fmt.Scanf("%d", &i)
-	if err != nil {
-		log.Fatal("Error in Scanf: ", err)
-	}
-	return i
-}
-
-func consumeSeconds() {
-	time.Sleep(2 * time.Second)
+func consumaSecondi() {
+	time.Sleep(time.Duration(generaNumeroRandom()) * time.Second)
 	return
 }
 
-func elaborateMessage() {
-	time.Sleep(2 * time.Second)
+func elaboraMessaggio() {
+	time.Sleep(time.Duration(generaNumeroRandom()) * time.Second)
 	return
+}
+
+func generaNumeroRandom() int {
+	rand.Seed(time.Now().UnixNano())
+	min := 1
+	max := 15
+	return (rand.Intn(max-min) + min)
 }

@@ -24,13 +24,13 @@ var (
 
 //Funzioni
 func scelta_variabili(i int) {
-	fmt.Print("Vuoi usare le variabili globali? y = YES, n = NO ")
+	fmt.Print("Vuoi usare le variabili predefinite? y = YES, n = NO ")
 	text1, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	if text1 == "y" {
 		timeoutRetransmit = TIMEOUT_RETRANSMIT
 		timeoutVisibility = TIMEOUT_VISIBILITY
 		semantic = SEMANTIC
-	} else {
+	} else if text1 == "n" {
 		fmt.Printf(" Digita il valore del Timeout retransmit? \n")
 		_, err := fmt.Scanf("%d", &i)
 		if err != nil {
@@ -54,6 +54,9 @@ func scelta_variabili(i int) {
 		}
 
 		semantic = i
+	} else {
+		fmt.Println("Il comando digitato non è corretto")
+		scelta_variabili(i)
 	}
 }
 
@@ -123,56 +126,50 @@ func (MsgQ *MessageQueue) PopFromQueue(a string, s *Message) error {
 	if len(MsgQ.Messages) > 0 {
 		var m = MsgQ.pop()
 		*s = m
-		go routine(m.ID, MsgQ)
+		go routine(m, MsgQ)
 	}
 	return nil
 }
 
-func routine(id int, msg_q *MessageQueue) {
-	var value int
+func routine(m Message, msg_q *MessageQueue) {
+	time.Sleep(time.Duration(timeoutRetransmit) * time.Second)
+	mutex.Lock()
+	if len(msg_q.Messages) < 1 {
+		mutex.Unlock()
+		fmt.Println("MESSAGE QUEUE VUOTA")
+		return
+	}
+
 	//Trovo il messaggio
 	for i := 0; i < len(msg_q.Messages); i++ {
-		if msg_q.Messages[i].ID == id {
-			value = i
-			continue
-		}
-	}
-	//SEMANTICA At Least Once
-	if semantic == ATLEASTONCE {
-		fmt.Println("SEMANTICA AT LEAST ONCE")
-		time.Sleep(time.Duration(timeoutRetransmit) * time.Second)
-		mutex.Lock()
-		if len(msg_q.Messages) < 1 {
-			fmt.Println("MESSAGE QUEUE VUOTA")
-			mutex.Unlock()
-			return
-		}
-		fmt.Printf("MESSAGE ID: %d    STATUS: %d\n", msg_q.Messages[value].ID, msg_q.Messages[value].Status)
-		if msg_q.Messages[value].Status == WAITINGACK || msg_q.Messages[value].Status == SENDED {
-			msg_q.Messages[value].Status = INQUEUE
-			fmt.Println("MESSAGGIO REINSERITO IN TRASMISSIONE - timeout retransmit scaduto")
-		} else if msg_q.Messages[value].Status == ELABORATED || msg_q.Messages[value].Status == INQUEUE {
-			fmt.Println("OK")
-		}
-		mutex.Unlock()
-	} else if semantic == TIMEOUTBASED { //SEMANTICA TIMEOUT BASED
-		fmt.Println("SEMANTICA TIMEOUT BASED")
-		time.Sleep(time.Duration(timeoutRetransmit) * time.Second)
-		mutex.Lock()
-		if msg_q.Messages[value].Status == WAITINGACK {
-			msg_q.Messages[value].Status = INQUEUE
-			fmt.Println("MESSAGGIO REINSERITO IN CODA")
-		} else if msg_q.Messages[value].Status == SENDED {
-			time.Sleep(time.Duration(timeoutVisibility) * time.Second)
-			if msg_q.Messages[value].Status == SENDED {
-				msg_q.Messages[value].Status = INQUEUE
-				fmt.Println("MESSAGGIO REINSERITO IN CODA")
+		if msg_q.Messages[i].ID == m.ID {
+			//SEMANTICA At Least Once
+			if semantic == ATLEASTONCE {
+				fmt.Printf("MESSAGE ID: %d    STATUS: %d\n", msg_q.Messages[i].ID, msg_q.Messages[i].Status)
+				if msg_q.Messages[i].Status == WAITINGACK || msg_q.Messages[i].Status == SENDED {
+					msg_q.Messages[i].Status = INQUEUE
+					fmt.Println("MESSAGGIO REINSERITO IN CODA - timeout retransmit scaduto")
+				} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
+				}
+				mutex.Unlock()
+			} else if semantic == TIMEOUTBASED { //SEMANTICA TIMEOUT BASED
+				if msg_q.Messages[i].Status == WAITINGACK {
+					msg_q.Messages[i].Status = INQUEUE
+					fmt.Println("MESSAGGIO REINSERITO IN CODA")
+				} else if msg_q.Messages[i].Status == SENDED {
+					time.Sleep(time.Duration(timeoutVisibility) * time.Second)
+					if msg_q.Messages[i].Status == SENDED {
+						msg_q.Messages[i].Status = INQUEUE
+						fmt.Println("MESSAGGIO REINSERITO IN CODA")
+					}
+				} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
+					fmt.Println("OK")
+				}
+				mutex.Unlock()
 			}
-		} else if msg_q.Messages[value].Status == ELABORATED || msg_q.Messages[value].Status == INQUEUE {
-			fmt.Println("OK")
 		}
-		mutex.Unlock()
 	}
+	mutex.Unlock()
 	return
 }
 
@@ -186,7 +183,7 @@ func (MsgQ *MessageQueue) ReceiveACK(a ACK, s *string) error {
 			//CONTROLLO L'ID DEL MESSAGGIO DI CUI HO RICEVUTO ACK
 			if MsgQ.Messages[i].ID == id {
 				//SE IL SUO STATUS è INQUEUE e ho ricevuto ACK status->SENDED
-				fmt.Printf("Message ID: %d with status: %d RECEIVED ACK\n", MsgQ.Messages[i].ID, MsgQ.Messages[i].Status)
+				fmt.Printf("Message ID: %d with status: %d - RECEIVED ACK\n", MsgQ.Messages[i].ID, MsgQ.Messages[i].Status)
 				if MsgQ.Messages[i].Status == WAITINGACK {
 					fmt.Printf("FIRST ACK RECEIVED FOR MESSAGE FOR ID: %d\n", id)
 					MsgQ.Messages[i].Status = SENDED
