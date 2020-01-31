@@ -23,6 +23,40 @@ var (
 )
 
 //Funzioni
+func scelta_variabili(i int) {
+	fmt.Print("Vuoi usare le variabili globali? y = YES, n = NO ")
+	text1, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	if text1 == "y" {
+		timeoutRetransmit = TIMEOUT_RETRANSMIT
+		timeoutVisibility = TIMEOUT_VISIBILITY
+		semantic = SEMANTIC
+	} else {
+		fmt.Printf(" Digita il valore del Timeout retransmit? \n")
+		_, err := fmt.Scanf("%d", &i)
+		if err != nil {
+			log.Fatal("Errore Scanf - Inserire un valore corretto.", err)
+		}
+
+		timeoutRetransmit = i
+
+		fmt.Printf(" Digita il valore del Timeout visibility? \n")
+		_, err = fmt.Scanf("%d", &i)
+		if err != nil {
+			log.Fatal("Errore Scanf - Inserire un valore corretto.", err)
+		}
+
+		timeoutVisibility = i
+
+		fmt.Printf(" Digita il valore della semantic delivery\n 0 per at-least-once, 1 per timeout-based\n")
+		_, err = fmt.Scanf("%d", &i)
+		if err != nil {
+			log.Fatal("Errore Scanf - Inserire un valore corretto.", err)
+		}
+
+		semantic = i
+	}
+}
+
 func (MsgQ *MessageQueue) GetSize(i int, ret *int) error {
 	*ret = len(MsgQ.Messages)
 	return nil
@@ -86,51 +120,55 @@ func (MsgQ *MessageQueue) pop() Message {
 }
 
 func (MsgQ *MessageQueue) PopFromQueue(a string, s *Message) error {
-	var m = MsgQ.pop()
-	*s = m
-	go routine(m.ID, MsgQ)
+	if len(MsgQ.Messages) > 0 {
+		var m = MsgQ.pop()
+		*s = m
+		go routine(m.ID, MsgQ)
+	}
 	return nil
 }
 
 func routine(id int, msg_q *MessageQueue) {
-	var m Message
+	var value int
+	//Trovo il messaggio
 	for i := 0; i < len(msg_q.Messages); i++ {
 		if msg_q.Messages[i].ID == id {
-			m = msg_q.Messages[i]
+			value = i
 			continue
 		}
 	}
+	//SEMANTICA At Least Once
 	if semantic == ATLEASTONCE {
 		fmt.Println("SEMANTICA AT LEAST ONCE")
 		time.Sleep(time.Duration(timeoutRetransmit) * time.Second)
-		if m.Status == WAITINGACK || m.Status == SENDED {
-			mutex.Lock()
-			m.Status = INQUEUE
+		mutex.Lock()
+		fmt.Printf("MESSAGE ID: %d    STATUS: %d\n", msg_q.Messages[value].ID, msg_q.Messages[value].Status)
+		if msg_q.Messages[value].Status == WAITINGACK || msg_q.Messages[value].Status == SENDED {
+			msg_q.Messages[value].Status = INQUEUE
 			fmt.Println("MESSAGGIO REINSERITO IN TRASMISSIONE - timeout retransmit scaduto")
-			fmt.Println("STATUS ATTUALE: %d", m.Status)
-			mutex.Unlock()
-		} else if m.Status == ELABORATED || m.Status == INQUEUE {
+		} else if msg_q.Messages[value].Status == ELABORATED || msg_q.Messages[value].Status == INQUEUE {
 			fmt.Println("OK")
 		}
-	} else if semantic == TIMEOUTBASED {
+		mutex.Unlock()
+	} else if semantic == TIMEOUTBASED { //SEMANTICA TIMEOUT BASED
+		fmt.Println("SEMANTICA TIMEOUT BASED")
 		time.Sleep(time.Duration(timeoutRetransmit) * time.Second)
-		fmt.Println("TIMEOUT SCADUTO")
-		if m.Status == WAITINGACK {
-			mutex.Lock()
-			m.Status = INQUEUE
-			mutex.Unlock()
+		mutex.Lock()
+		if msg_q.Messages[value].Status == WAITINGACK {
+			msg_q.Messages[value].Status = INQUEUE
 			fmt.Println("MESSAGGIO REINSERITO IN CODA")
-		} else if m.Status == SENDED {
+		} else if msg_q.Messages[value].Status == SENDED {
 			time.Sleep(time.Duration(timeoutVisibility) * time.Second)
-			if m.Status == SENDED {
-				mutex.Lock()
-				m.Status = INQUEUE
-				mutex.Unlock()
+			if msg_q.Messages[value].Status == SENDED {
+				msg_q.Messages[value].Status = INQUEUE
+				fmt.Println("MESSAGGIO REINSERITO IN CODA")
 			}
-		} else if m.Status == ELABORATED || m.Status == INQUEUE {
+		} else if msg_q.Messages[value].Status == ELABORATED || msg_q.Messages[value].Status == INQUEUE {
 			fmt.Println("OK")
 		}
+		mutex.Unlock()
 	}
+	return
 }
 
 func (MsgQ *MessageQueue) ReceiveACK(a ACK, s *string) error {
@@ -138,11 +176,12 @@ func (MsgQ *MessageQueue) ReceiveACK(a ACK, s *string) error {
 	id = a.ID
 
 	if semantic == ATLEASTONCE || semantic == TIMEOUTBASED {
+		mutex.Lock()
 		for i := 0; i < len(MsgQ.Messages); i++ {
 			//CONTROLLO L'ID DEL MESSAGGIO DI CUI HO RICEVUTO ACK
 			if MsgQ.Messages[i].ID == id {
 				//SE IL SUO STATUS è INQUEUE e ho ricevuto ACK status->SENDED
-				mutex.Lock()
+				fmt.Printf("Message ID: %d with status: %d RECEIVED ACK\n", MsgQ.Messages[i].ID, MsgQ.Messages[i].Status)
 				if MsgQ.Messages[i].Status == WAITINGACK {
 					fmt.Printf("FIRST ACK RECEIVED FOR MESSAGE FOR ID: %d\n", id)
 					MsgQ.Messages[i].Status = SENDED
@@ -154,12 +193,18 @@ func (MsgQ *MessageQueue) ReceiveACK(a ACK, s *string) error {
 					MsgQ.Messages[i].Status = ELABORATED
 					mutex.Unlock()
 					continue
+				} else if MsgQ.Messages[i].Status == INQUEUE {
+					//Scarta l'ACK
+					fmt.Println("ACK SCARTATO")
+					mutex.Unlock()
+					continue
+				} else {
+					mutex.Unlock()
 				}
-				mutex.Unlock()
 			}
 		}
+		//FACCIO SCORRERE LA MESSAGE QUEUE, ELIMINANDO I MESSAGGI GIA ELABORATI
 		for i := 0; i < len(MsgQ.Messages); i++ {
-			//FACCIO SCORRERE LA MESSAGE QUEUE, ELIMINANDO I MESSAGGI GIA ELABORATI
 			mutex.Lock()
 			if MsgQ.Messages[i].Status == ELABORATED {
 				fmt.Printf("MESSAGE REMOVED FROM QUEUE WITH ID: %d\n", MsgQ.Messages[i].ID)
@@ -209,39 +254,5 @@ func main() {
 	for {
 		clientConnected++
 		server.Accept(l)
-	}
-}
-
-func scelta_variabili(i int) {
-	fmt.Print("Vuoi usare le variabili globali? y = YES, n = NO ")
-	text1, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	if text1 == "y" {
-		timeoutRetransmit = TIMEOUT_RETRANSMIT
-		timeoutVisibility = TIMEOUT_VISIBILITY
-		semantic = SEMANTIC
-	} else {
-		fmt.Printf(" Digita il valore del Timeout retransmit? \n")
-		_, err := fmt.Scanf("%d", &i)
-		if err != nil {
-			log.Fatal("Errore Scanf - Inserire un valore corretto.", err)
-		}
-
-		timeoutRetransmit = i
-
-		fmt.Printf(" Digita il valore del Timeout visibility? \n")
-		_, err = fmt.Scanf("%d", &i)
-		if err != nil {
-			log.Fatal("Errore Scanf - Inserire un valore corretto.", err)
-		}
-
-		timeoutVisibility = i
-
-		fmt.Printf(" Digita il valore della semantic delivery\n 0 per at-least-once, 1 per timeout-based\n")
-		_, err = fmt.Scanf("%d", &i)
-		if err != nil {
-			log.Fatal("Errore Scanf - Inserire un valore corretto.", err)
-		}
-
-		semantic = i
 	}
 }

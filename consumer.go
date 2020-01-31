@@ -48,6 +48,8 @@ func consume(consumer *rpc.Client) {
 			log.Fatal("Error in MessageQueue.GetSize: ", msgCallSize.Error.Error())
 		}
 
+		fmt.Printf("LEN: %d\n", out)
+
 		//Controllo se la dimensione della queue sia > 1, oppure vado avanti nel caso sia vuota
 		if out != 0 {
 			msgCall := consumer.Go("MessageQueue.PopFromQueue", args, &m, nil)
