@@ -46,5 +46,6 @@ func main() {
 		}
 
 		fmt.Printf("MessageQueue.PushInQueue: OK \n")
+		time.Sleep(20 * time.Millisecond)
 	}
 }

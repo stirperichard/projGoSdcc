@@ -85,10 +85,6 @@ func (MsgQ *MessageQueue) ClientConnected(a string, i *int) error {
 }
 
 func (MsgQ *MessageQueue) push(m Message) {
-	MsgQ.Messages = append(MsgQ.Messages, m)
-}
-
-func (MsgQ *MessageQueue) PushInQueue(m Message, reply *bool) error {
 	m.Timeout_retransmit = timeoutRetransmit
 	m.Timeout_visibility = timeoutVisibility
 	m.Semantic = semantic
@@ -96,8 +92,12 @@ func (MsgQ *MessageQueue) PushInQueue(m Message, reply *bool) error {
 	mutex.Lock()
 	m.ID = id
 	id++
-	MsgQ.push(m)
+	MsgQ.Messages = append(MsgQ.Messages, m)
 	mutex.Unlock()
+}
+
+func (MsgQ *MessageQueue) PushInQueue(m Message, reply *bool) error {
+	MsgQ.push(m)
 	fmt.Printf("Messaggio ricevuto: %s", m.Text)
 	return nil
 }
@@ -136,31 +136,31 @@ func routine(m Message, msg_q *MessageQueue) {
 		mutex.Unlock()
 		fmt.Println("MESSAGE QUEUE VUOTA")
 		return
-	}
-
-	//Trovo il messaggio
-	for i := 0; i < len(msg_q.Messages); i++ {
-		if msg_q.Messages[i].ID == m.ID {
-			//SEMANTICA At Least Once
-			if semantic == ATLEASTONCE {
-				fmt.Printf("MESSAGE ID: %d    STATUS: %d\n", msg_q.Messages[i].ID, msg_q.Messages[i].Status)
-				if msg_q.Messages[i].Status == WAITINGACK || msg_q.Messages[i].Status == SENDED {
-					msg_q.Messages[i].Status = INQUEUE
-					fmt.Println("MESSAGGIO REINSERITO IN CODA - timeout retransmit scaduto")
-				} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
-				}
-			} else if semantic == TIMEOUTBASED { //SEMANTICA TIMEOUT BASED
-				if msg_q.Messages[i].Status == WAITINGACK {
-					msg_q.Messages[i].Status = INQUEUE
-					fmt.Println("MESSAGGIO REINSERITO IN CODA")
-				} else if msg_q.Messages[i].Status == SENDED {
-					time.Sleep(time.Duration(timeoutVisibility) * time.Second)
-					if msg_q.Messages[i].Status == SENDED {
+	} else {
+		//Trovo il messaggio
+		for i := 0; i < len(msg_q.Messages); i++ {
+			if msg_q.Messages[i].ID == m.ID {
+				//SEMANTICA At Least Once
+				if semantic == ATLEASTONCE {
+					fmt.Printf("MESSAGE ID: %d    STATUS: %d\n", m.ID, msg_q.Messages[i].Status)
+					if msg_q.Messages[i].Status == WAITINGACK || msg_q.Messages[i].Status == SENDED {
+						msg_q.Messages[i].Status = INQUEUE
+						fmt.Println("MESSAGGIO REINSERITO IN CODA - timeout retransmit scaduto")
+					} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
+					}
+				} else if semantic == TIMEOUTBASED { //SEMANTICA TIMEOUT BASED
+					if msg_q.Messages[i].Status == WAITINGACK {
 						msg_q.Messages[i].Status = INQUEUE
 						fmt.Println("MESSAGGIO REINSERITO IN CODA")
+					} else if msg_q.Messages[i].Status == SENDED {
+						time.Sleep(time.Duration(timeoutVisibility) * time.Second)
+						if msg_q.Messages[i].Status == SENDED {
+							msg_q.Messages[i].Status = INQUEUE
+							fmt.Println("MESSAGGIO REINSERITO IN CODA")
+						}
+					} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
+						fmt.Println("OK")
 					}
-				} else if msg_q.Messages[i].Status == ELABORATED || msg_q.Messages[i].Status == INQUEUE {
-					fmt.Println("OK")
 				}
 			}
 		}
@@ -184,18 +184,18 @@ func (MsgQ *MessageQueue) ReceiveACK(a ACK, s *string) error {
 					fmt.Printf("FIRST ACK RECEIVED FOR MESSAGE FOR ID: %d\n", id)
 					MsgQ.Messages[i].Status = SENDED
 					mutex.Unlock()
-					continue
+					break
 				} else if MsgQ.Messages[i].Status == SENDED {
 					//SE IL SUO STATUS è SENDED e ho ricevuto ACK status->ELABORATED
 					fmt.Printf("SECOND ACK RECEIVED FOR MESSAGE FOR ID: %d\n", id)
 					MsgQ.Messages[i].Status = ELABORATED
 					mutex.Unlock()
-					continue
+					break
 				} else if MsgQ.Messages[i].Status == INQUEUE {
 					//Scarta l'ACK
 					fmt.Println("ACK SCARTATO")
 					mutex.Unlock()
-					continue
+					break
 				} else {
 					mutex.Unlock()
 				}
@@ -244,13 +244,16 @@ func main() {
 
 	id = 0
 
-	defer l.Close()
-
 	scelta_variabili(i)
 
 	clientConnected = 0
+
+	defer l.Close()
+
 	for {
+		fmt.Printf("Client attualmente connessi: %d\n", clientConnected)
+		conn, _ := l.Accept()
+		go server.ServeConn(conn)
 		clientConnected++
-		server.Accept(l)
 	}
 }
