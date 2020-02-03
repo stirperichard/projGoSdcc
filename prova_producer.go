@@ -30,7 +30,7 @@ func main() {
 
 	defer producer.Close()
 
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 1000; i++ {
 
 		var m Message
 		text1 := StringWithCharset(10, charset)

@@ -13,8 +13,8 @@ import (
 
 //Definizione delle variabili
 var (
-	MsgQ              MessageQueue     //Message Queue utilizzata
-	mutex             = sync.RWMutex{} //Mutex in Read e Write
+	MsgQ              MessageQueue   //Message Queue utilizzata
+	mutex             = sync.Mutex{} //Mutex
 	id                int
 	timeoutRetransmit int
 	timeoutVisibility int
@@ -85,9 +85,7 @@ func (MsgQ *MessageQueue) ClientConnected(a string, i *int) error {
 }
 
 func (MsgQ *MessageQueue) push(m Message) {
-	mutex.Lock()
 	MsgQ.Messages = append(MsgQ.Messages, m)
-	mutex.Unlock()
 }
 
 func (MsgQ *MessageQueue) PushInQueue(m Message, reply *bool) error {
@@ -98,9 +96,9 @@ func (MsgQ *MessageQueue) PushInQueue(m Message, reply *bool) error {
 	mutex.Lock()
 	m.ID = id
 	id++
+	MsgQ.push(m)
 	mutex.Unlock()
 	fmt.Printf("Messaggio ricevuto: %s", m.Text)
-	MsgQ.push(m)
 	return nil
 }
 
